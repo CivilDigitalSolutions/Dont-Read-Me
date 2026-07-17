@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Free text-to-speech in your browser. Paste text, pick a voice, and listen. Nothing leaves your device." />
+  <title>Read Aloud — Text to Speech</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #273449;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --danger: #f87171;
+      --ok: #34d399;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: clamp(16px, 4vw, 40px) clamp(16px, 4vw, 24px) 64px;
+    }
+    header h1 {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      margin: 0 0 4px;
+      letter-spacing: -0.02em;
+    }
+    header p.sub {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      resize: vertical;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 1rem;
+      font-family: inherit;
+      line-height: 1.55;
+    }
+    textarea:focus, select:focus, input:focus, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .counter {
+      text-align: right;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 4px 0 0;
+    }
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 11px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform .04s ease, background .15s ease, border-color .15s ease;
+      flex: 1 1 auto;
+      justify-content: center;
+      min-width: 100px;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #08131f; }
+    button.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+    button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 560px) { .grid { grid-template-columns: 1fr 1fr; } }
+    select {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .slider-row { display: flex; align-items: center; gap: 12px; }
+    input[type="range"] { flex: 1; accent-color: var(--accent); }
+    .val {
+      font-variant-numeric: tabular-nums;
+      min-width: 3ch;
+      text-align: right;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      min-height: 20px;
+      margin-top: 10px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.speaking { background: var(--ok); animation: pulse 1.2s ease-in-out infinite; }
+    .dot.paused { background: #fbbf24; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 32px;
+    }
+    footer a { color: var(--accent); }
+    .warn {
+      background: #422006;
+      border: 1px solid #92400e;
+      color: #fde68a;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Read Aloud</h1>
+      <p class="sub">Paste text, pick a voice, press Read. Everything runs in your browser — nothing is uploaded.</p>
+    </header>
+
+    <div class="warn" id="unsupported" hidden>
+      Your browser doesn't support the Web Speech API. Try Chrome, Edge, or Safari.
+    </div>
+
+    <div class="card">
+      <label for="text">Text</label>
+      <textarea id="text" placeholder="Paste or type anything here…" autocomplete="off" spellcheck="false"></textarea>
+      <div class="counter"><span id="charCount">0</span> characters</div>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <button id="readBtn" class="primary" type="button">▶ Read</button>
+        <button id="pauseBtn" class="ghost" type="button" disabled>⏸ Pause</button>
+        <button id="stopBtn" class="ghost" type="button" disabled>⏹ Stop</button>
+      </div>
+      <div class="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Idle</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label for="voice">Voice</label>
+          <select id="voice"></select>
+        </div>
+        <div>
+          <label for="rate">Speed <span class="val" id="rateVal">1.0×</span></label>
+          <div class="slider-row">
+            <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" />
+          </div>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:16px;">
+        <div>
+          <label for="pitch">Pitch <span class="val" id="pitchVal">1.0</span></label>
+          <div class="slider-row">
+            <input type="range" id="pitch" min="0" max="2" step="0.1" value="1" />
+          </div>
+        </div>
+        <div></div>
+      </div>
+    </div>
+
+    <footer>
+      Runs entirely on your device using the browser's built-in voices.
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // ------------------------------------------------------------------
+    // Feature detection
+    // ------------------------------------------------------------------
+    var synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
+      document.getElementById("unsupported").hidden = false;
+      document.getElementById("readBtn").disabled = true;
+      return;
+    }
+
+    // ------------------------------------------------------------------
+    // DOM
+    // ------------------------------------------------------------------
+    var el = {
+      text: document.getElementById("text"),
+      charCount: document.getElementById("charCount"),
+      readBtn: document.getElementById("readBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      voice: document.getElementById("voice"),
+      rate: document.getElementById("rate"),
+      rateVal: document.getElementById("rateVal"),
+      pitch: document.getElementById("pitch"),
+      pitchVal: document.getElementById("pitchVal"),
+      statusDot: document.getElementById("statusDot"),
+      statusText: document.getElementById("statusText")
+    };
+
+    // ------------------------------------------------------------------
+    // Session state (in-memory persistence per the build plan — no storage)
+    // ------------------------------------------------------------------
+    var session = {
+      voiceURI: null,   // remembered selected voice (by stable identifier)
+      rate: 1,
+      pitch: 1
+    };
+
+    var MAX_CHUNK_CHARS = 200; // hard-split guard for long sentences / URLs
+    var RESUME_PING_MS = 10000; // Chrome pause/truncation keep-alive interval
+
+    // ------------------------------------------------------------------
+    // Chunker — pure function so a future cloud engine can reuse it.
+    // Splits into sentence-sized pieces, then hard-splits anything over
+    // MAX_CHUNK_CHARS on word boundaries (Chrome truncates long utterances).
+    // ------------------------------------------------------------------
+    function splitIntoChunks(text) {
+      var trimmed = (text || "").trim();
+      if (!trimmed) return [];
+      // Sentence-sized pieces: runs ending in .!? plus any trailing run that
+      // has no terminal punctuation. The trailing branch is [^.!?]+$ (the whole
+      // remainder), not \s*\S+\s*$ — the latter keeps only the final word and
+      // silently drops the rest of a punctuation-free paragraph.
+      var sentences = trimmed.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [trimmed];
+      var out = [];
+      for (var i = 0; i < sentences.length; i++) {
+        var s = sentences[i].trim();
+        if (!s) continue;
+        if (s.length <= MAX_CHUNK_CHARS) {
+          out.push(s);
+        } else {
+          out = out.concat(hardSplit(s));
+        }
+      }
+      return out;
+    }
+
+    function hardSplit(s) {
+      var words = s.split(/\s+/);
+      var pieces = [];
+      var cur = "";
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        // A single token longer than the limit (e.g. a pasted URL): break it.
+        if (w.length > MAX_CHUNK_CHARS) {
+          if (cur) { pieces.push(cur); cur = ""; }
+          for (var j = 0; j < w.length; j += MAX_CHUNK_CHARS) {
+            pieces.push(w.slice(j, j + MAX_CHUNK_CHARS));
+          }
+          continue;
+        }
+        if (!cur) {
+          cur = w;
+        } else if (cur.length + 1 + w.length <= MAX_CHUNK_CHARS) {
+          cur += " " + w;
+        } else {
+          pieces.push(cur);
+          cur = w;
+        }
+      }
+      if (cur) pieces.push(cur);
+      return pieces;
+    }
+
+    // ------------------------------------------------------------------
+    // Voice loading. Chrome returns [] on first getVoices() and fires
+    // 'voiceschanged' later; Safari populates synchronously and never
+    // fires the event. Call once now AND listen — idempotent rebuild.
+    // ------------------------------------------------------------------
+    var availableVoices = [];
+
+    function voiceId(v) {
+      return v.voiceURI || (v.name + "|" + v.lang);
+    }
+
+    function loadVoices() {
+      var all = synth.getVoices();
+      if (!all || !all.length) return; // wait for the event
+
+      // Prefer English; if none, fall back to everything so the dropdown
+      // is never empty.
+      var english = all.filter(function (v) {
+        return v.lang && v.lang.toLowerCase().indexOf("en") === 0;
+      });
+      var list = english.length ? english : all.slice();
+
+      // Remote voices are usually better — sort localService voices last,
+      // stable within each group.
+      list.sort(function (a, b) {
+        var la = a.localService ? 1 : 0;
+        var lb = b.localService ? 1 : 0;
+        if (la !== lb) return la - lb;
+        return a.name.localeCompare(b.name);
+      });
+
+      availableVoices = list;
+      renderVoiceDropdown();
+    }
+
+    function renderVoiceDropdown() {
+      // Preserve the user's selection across rebuilds (voice objects are not
+      // stable across getVoices() calls, so key off a stable id).
+      var wanted = session.voiceURI;
+      el.voice.innerHTML = "";
+      var matchedIndex = 0;
+      for (var i = 0; i < availableVoices.length; i++) {
+        var v = availableVoices[i];
+        var id = voiceId(v);
+        var opt = document.createElement("option");
+        opt.value = id;
+        var tag = v.localService ? " — device" : "";
+        opt.textContent = v.name + " (" + v.lang + ")" + tag;
+        el.voice.appendChild(opt);
+        if (wanted && id === wanted) matchedIndex = i;
+      }
+      if (availableVoices.length) {
+        el.voice.selectedIndex = matchedIndex;
+        session.voiceURI = voiceId(availableVoices[matchedIndex]);
+      }
+    }
+
+    function getSelectedVoice() {
+      var id = el.voice.value;
+      for (var i = 0; i < availableVoices.length; i++) {
+        if (voiceId(availableVoices[i]) === id) return availableVoices[i];
+      }
+      return availableVoices[0] || null;
+    }
+
+    loadVoices();
+    // Some Chrome builds only expose onvoiceschanged as a property.
+    if (typeof synth.addEventListener === "function") {
+      synth.addEventListener("voiceschanged", loadVoices);
+    } else {
+      synth.onvoiceschanged = loadVoices;
+    }
+
+    // ------------------------------------------------------------------
+    // Playback engine (LocalTTS). Kept behind a small interface so Stage 2
+    // can add a CloudTTS engine with the same speak/pause/stop shape.
+    // ------------------------------------------------------------------
+    var state = "idle"; // idle | speaking | paused
+    var queue = [];
+    var queueIndex = 0;
+    var resumeTimer = null;
+
+    function startResumePing() {
+      stopResumePing();
+      // Chrome silently stalls speech / drops pause past ~15s. A periodic
+      // resume() keeps it alive. Must NOT fire while genuinely paused.
+      resumeTimer = setInterval(function () {
+        if (state === "speaking") {
+          try { synth.resume(); } catch (e) {}
+        }
+      }, RESUME_PING_MS);
+    }
+
+    function stopResumePing() {
+      if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+    }
+
+    function setState(next) {
+      state = next;
+      el.statusDot.className = "dot" + (next === "speaking" ? " speaking" : next === "paused" ? " paused" : "");
+      el.statusText.textContent =
+        next === "speaking" ? "Speaking…" :
+        next === "paused" ? "Paused" : "Idle";
+      el.readBtn.disabled = (next === "speaking");
+      el.pauseBtn.disabled = (next === "idle");
+      el.pauseBtn.textContent = (next === "paused") ? "▶ Resume" : "⏸ Pause";
+      el.stopBtn.disabled = (next === "idle");
+    }
+
+    function speakNext() {
+      if (queueIndex >= queue.length) {
+        finish();
+        return;
+      }
+      var voice = getSelectedVoice();
+      var u = new SpeechSynthesisUtterance(queue[queueIndex]);
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      u.rate = clamp(parseFloat(el.rate.value) || 1, 0.5, 2);
+      u.pitch = clamp(parseFloat(el.pitch.value) || 1, 0, 2);
+      u.onend = function () {
+        // Only advance if we're still meant to be playing (Stop clears queue).
+        if (state === "idle") return;
+        queueIndex++;
+        speakNext();
+      };
+      u.onerror = function (ev) {
+        // 'interrupted'/'canceled' are expected on Stop — ignore quietly.
+        if (ev && (ev.error === "interrupted" || ev.error === "canceled")) return;
+        // Real error: skip the failed chunk rather than stranding the queue.
+        if (state === "idle") return;
+        queueIndex++;
+        speakNext();
+      };
+      synth.speak(u);
+    }
+
+    function finish() {
+      stopResumePing();
+      queue = [];
+      queueIndex = 0;
+      setState("idle");
+    }
+
+    function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+
+    // ------------------------------------------------------------------
+    // Controls
+    // ------------------------------------------------------------------
+    function onRead() {
+      var chunks = splitIntoChunks(el.text.value);
+      if (!chunks.length) {
+        el.statusText.textContent = "Nothing to read — paste some text first.";
+        return;
+      }
+      // Fresh start: cancel anything in flight, then queue.
+      synth.cancel();
+      queue = chunks;
+      queueIndex = 0;
+      setState("speaking");
+      startResumePing();
+      // cancel() + immediate speak() can be dropped in some Chrome builds;
+      // let cancel settle before queueing the first utterance.
+      setTimeout(speakNext, 60);
+    }
+
+    function onPauseToggle() {
+      if (state === "speaking") {
+        synth.pause();
+        stopResumePing(); // suppress the resume-ping so pause actually holds
+        setState("paused");
+      } else if (state === "paused") {
+        setState("speaking");
+        startResumePing();
+        synth.resume();
+      }
+    }
+
+    function onStop() {
+      // Clear state first so onend/onerror handlers don't re-queue.
+      setState("idle");
+      queue = [];
+      queueIndex = 0;
+      stopResumePing();
+      synth.cancel();
+    }
+
+    // ------------------------------------------------------------------
+    // Wiring
+    // ------------------------------------------------------------------
+    function updateCount() {
+      el.charCount.textContent = el.text.value.length.toLocaleString();
+    }
+
+    el.text.addEventListener("input", updateCount);
+    updateCount();
+
+    el.readBtn.addEventListener("click", onRead);
+    el.pauseBtn.addEventListener("click", onPauseToggle);
+    el.stopBtn.addEventListener("click", onStop);
+
+    el.voice.addEventListener("change", function () {
+      session.voiceURI = el.voice.value; // remember for the session
+    });
+
+    el.rate.addEventListener("input", function () {
+      session.rate = parseFloat(el.rate.value);
+      el.rateVal.textContent = session.rate.toFixed(1) + "×";
+    });
+    el.pitch.addEventListener("input", function () {
+      session.pitch = parseFloat(el.pitch.value);
+      el.pitchVal.textContent = session.pitch.toFixed(1);
+    });
+
+    // Reflect initial slider labels.
+    el.rateVal.textContent = parseFloat(el.rate.value).toFixed(1) + "×";
+    el.pitchVal.textContent = parseFloat(el.pitch.value).toFixed(1);
+
+    // Safety: cancel speech if the page is being unloaded.
+    window.addEventListener("beforeunload", function () {
+      try { synth.cancel(); } catch (e) {}
+    });
+
+    setState("idle");
+  })();
+  </script>
+</body>
+</html>
