@@ -1,6 +1,6 @@
 {
-  "name": "Read Aloud — Text to Speech",
-  "short_name": "Read Aloud",
+  "name": "Don't Read This — Text to Speech",
+  "short_name": "Don't Read This",
   "description": "Free in-browser text-to-speech. Paste text, pick a voice, listen.",
   "start_url": "./",
   "scope": "./",

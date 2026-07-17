@@ -1,4 +1,4 @@
-# Read Aloud — Text-to-Speech Web Tool
+# Don't Read This — Text-to-Speech Web Tool
 
 A zero-cost, zero-backend text-to-speech tool that runs entirely in your browser
 using the built-in Web Speech API. Paste text, pick a voice, press **Read**.
